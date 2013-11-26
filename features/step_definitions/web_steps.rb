@@ -41,10 +41,47 @@ Given /^the blog is set up$/ do
                 :profile_id => 1,
                 :name => 'admin',
                 :state => 'active'})
+
+
+  User.create!({:login => 'publisher',
+                :password => 'aaaaaaaa',
+                :email => 'pub@snow.com',
+                :profile_id => 2,
+                :name => 'publisher',
+                :state => 'active'})
 end
 
-And /^I am logged into the admin panel$/ do
+
+Given /^the following comments exist/ do |comments_table|
+  comments_table.hashes.each do |comment|
+    body=comment['comment_body']
+    title=comment['title']
+    auth=comment['comment_author']
+    article =Article.find_by_title(title)
+    path = URI.parse(article.permalink_url).path
+    visit path
+    fill_in 'comment_body', :with => body
+    fill_in 'comment_author', :with => auth
+    click_button 'comment'
+
+  end
+
+end
+
+And /^Sign In Page$/ do
   visit '/accounts/login'
+  if current_url  && !current_url.include?('/accounts/login')
+    visit '/accounts/logout'
+  end
+  visit '/accounts/login'
+
+end
+
+
+
+
+And /^I am logged into the admin panel$/ do
+  step "Sign In Page"
   fill_in 'user_login', :with => 'admin'
   fill_in 'user_password', :with => 'aaaaaaaa'
   click_button 'Login'
@@ -54,6 +91,69 @@ And /^I am logged into the admin panel$/ do
     assert page.has_content?('Login successful')
   end
 end
+
+
+
+
+And /^I am logged into the publisher panel$/ do
+  step "Sign In Page"
+  fill_in 'user_login', :with => 'publisher'
+  fill_in 'user_password', :with => 'aaaaaaaa'
+  click_button 'Login'
+  if page.respond_to? :should
+    page.should have_content('Login successful')
+  else
+    assert page.has_content?('Login successful')
+  end
+end
+
+
+When /^I visit article with title "([^"]*)"$/ do |title|
+  article =Article.find_by_title(title)
+  path = URI.parse(article.permalink_url).path
+  visit path
+end
+
+
+
+When(/^I merge articles "(.*?)" and "(.*?)"$/) do |title1, title2|
+  visit path_to( %Q{the edit page for "#{title1}"})
+  other_article =Article.find_by_title(title2)
+  #Then show me the page
+  fill_in(:merge_with, :with => other_article.id)
+  click_button "Merge"
+end
+
+Then (/I should see comments "(.*?)" and "(.*?)" in merged article$/) do |com1,com2|
+  step %Q{I should see "#{com1}"}
+  step %Q{I should see "#{com2}"}
+end
+
+Then (/I should see content "(.*?)" and "(.*?)" in merged article$/) do |com1,com2|
+  step %Q{I should see "#{com1}"}
+  step %Q{I should see "#{com2}"}
+end
+
+
+
+Given /^the following articles exist/ do |articles_table|
+  articles_table.hashes.each do |article|
+    user_name= article[:username]
+    if user_name == 'publisher'
+      step "I am logged into the publisher panel"
+    else
+      step  "I am logged into the admin panel"
+    end
+    step "I am on the new article page"
+    fill_in 'article_title', :with => article['title']
+    fill_in 'article__body_and_extended_editor', :with => article['body']
+
+    step %Q{I press "Publish"}
+
+  end
+
+end
+
 
 # Single-line step scoper
 When /^(.*) within (.*[^:])$/ do |step, parent|
